@@ -1,0 +1,306 @@
+// ============================================================
+// DATABASE SCHEMA — African Talent Platform
+// Supabase PostgreSQL via Prisma ORM
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum UserRole {
+  talent
+  company
+  admin
+}
+
+enum RoleCategory {
+  developer
+  designer
+  product_manager
+  video_editor
+  content_creator
+}
+
+enum EmploymentType {
+  full_time
+  contract
+  part_time
+}
+
+enum AvailabilityStatus {
+  immediate
+  two_weeks
+  one_month
+  three_months
+}
+
+enum ApplicationStatus {
+  draft
+  pending_review
+  approved
+  rejected
+  waitlist
+}
+
+enum SubscriptionStatus {
+  trial
+  active
+  expired
+  cancelled
+}
+
+enum TalentSubscriptionTier {
+  standard
+  featured
+}
+
+enum CompanySubscriptionTier {
+  scout
+  recruiter
+  enterprise
+}
+
+enum CompanySize {
+  size_1_10
+  size_11_50
+  size_51_200
+  size_201_500
+  size_500_plus
+}
+
+enum ContactRequestStatus {
+  pending
+  accepted
+  declined
+  expired
+}
+
+enum WaitlistSource {
+  organic
+  referral
+  social
+  email
+}
+
+// ============================================================
+// CORE TABLES
+// ============================================================
+
+model User {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  googleId   String   @unique @map("google_id")
+  role       UserRole
+  createdAt  DateTime @default(now()) @map("created_at")
+  lastLogin  DateTime @updatedAt @map("last_login")
+
+  talentProfile  TalentProfile?
+  companyProfile CompanyProfile?
+  reviewedApplications Application[] @relation("ReviewedBy")
+
+  @@map("users")
+}
+
+model TalentProfile {
+  id     String @id @default(uuid())
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Basic info
+  fullName  String  @map("full_name")
+  headline  String
+  location  String
+  timezone  String
+  avatarUrl String? @map("avatar_url")
+
+  // Professional
+  roleCategory     RoleCategory   @map("role_category")
+  yearsExperience  Int            @map("years_experience")
+  bio              String
+  primarySkills    String[]       @map("primary_skills")
+  secondarySkills  String[]       @map("secondary_skills")
+
+  // Work preferences
+  employmentType  EmploymentType      @map("employment_type")
+  availability    AvailabilityStatus
+  remoteOnly      Boolean             @default(true) @map("remote_only")
+  willingToRelocate Boolean           @default(false) @map("willing_to_relocate")
+  salaryMin       Int?                @map("salary_min")
+  salaryMax       Int?                @map("salary_max")
+  salaryCurrency  String              @default("USD") @map("salary_currency")
+
+  // Links
+  linkedinUrl  String? @map("linkedin_url")
+  githubUrl    String? @map("github_url")
+  portfolioUrl String? @map("portfolio_url")
+  resumeUrl    String? @map("resume_url")
+  dribbbleUrl  String? @map("dribbble_url")
+  websiteUrl   String? @map("website_url")
+
+  // Status & subscription
+  applicationStatus       ApplicationStatus      @default(draft) @map("application_status")
+  cohortNumber            Int?                   @map("cohort_number")
+  subscriptionStatus      SubscriptionStatus?    @map("subscription_status")
+  subscriptionTier        TalentSubscriptionTier? @map("subscription_tier")
+  subscriptionExpiresAt   DateTime?              @map("subscription_expires_at")
+
+  // Analytics (updated real-time)
+  profileViews      Int @default(0) @map("profile_views")
+  searchAppearances Int @default(0) @map("search_appearances")
+  contactRequests   Int @default(0) @map("contact_requests")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  applications     Application[]
+  contactRequestsReceived ContactRequest[] @relation("TalentContacts")
+  savedBy          SavedCandidate[]
+
+  @@map("talent_profiles")
+}
+
+model CompanyProfile {
+  id     String @id @default(uuid())
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Company info
+  companyName    String      @map("company_name")
+  companyWebsite String?     @map("company_website")
+  companySize    CompanySize @map("company_size")
+  industry       String
+  description    String?
+  logoUrl        String?     @map("logo_url")
+
+  // Subscription
+  subscriptionTier      CompanySubscriptionTier @default(scout) @map("subscription_tier")
+  subscriptionStatus    SubscriptionStatus      @default(trial) @map("subscription_status")
+  subscriptionExpiresAt DateTime?               @map("subscription_expires_at")
+  monthlyContactLimit   Int                     @default(10) @map("monthly_contact_limit")
+  contactsUsedThisMonth Int                     @default(0) @map("contacts_used_this_month")
+  contactsResetDate     DateTime                @default(now()) @map("contacts_reset_date")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  contactRequests ContactRequest[] @relation("CompanyContacts")
+  savedCandidates SavedCandidate[]
+
+  @@map("company_profiles")
+}
+
+model Application {
+  id       String @id @default(uuid())
+  talentId String @map("talent_id")
+  talent   TalentProfile @relation(fields: [talentId], references: [id], onDelete: Cascade)
+
+  cohortNumber Int @map("cohort_number")
+
+  // Application content
+  whyJoin           String   @map("why_join")
+  portfolioProjects Json[]   @map("portfolio_projects")
+
+  // Payment
+  applicationFeePaid   Boolean  @default(false) @map("application_fee_paid")
+  applicationFeeAmount Decimal  @default(25.00) @map("application_fee_amount")
+  applicationFeePaidAt DateTime? @map("application_fee_paid_at")
+
+  // Review
+  status          ApplicationStatus @default(pending_review)
+  reviewedById    String?           @map("reviewed_by_id")
+  reviewedBy      User?             @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?         @map("reviewed_at")
+  rejectionReason String?           @map("rejection_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("applications")
+}
+
+model ContactRequest {
+  id        String @id @default(uuid())
+  companyId String @map("company_id")
+  company   CompanyProfile @relation("CompanyContacts", fields: [companyId], references: [id], onDelete: Cascade)
+  talentId  String @map("talent_id")
+  talent    TalentProfile  @relation("TalentContacts", fields: [talentId], references: [id], onDelete: Cascade)
+
+  message     String
+  status      ContactRequestStatus @default(pending)
+  respondedAt DateTime?            @map("responded_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("contact_requests")
+}
+
+model SavedCandidate {
+  id        String @id @default(uuid())
+  companyId String @map("company_id")
+  company   CompanyProfile @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  talentId  String @map("talent_id")
+  talent    TalentProfile  @relation(fields: [talentId], references: [id], onDelete: Cascade)
+
+  folderName String? @map("folder_name")
+  notes      String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([companyId, talentId])
+  @@map("saved_candidates")
+}
+
+model WaitlistEntry {
+  id    String @id @default(uuid())
+  email String @unique
+
+  firstName String? @map("first_name")
+  role      String  // 'developer', 'designer', etc. or 'company'
+  source    WaitlistSource @default(organic)
+
+  convertKitId String? @map("convert_kit_id")
+  notified     Boolean @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("waitlist_entries")
+}
+
+model Cohort {
+  id     String @id @default(uuid())
+  number Int    @unique
+
+  name         String
+  maxSize      Int      @map("max_size")
+  openAt       DateTime @map("open_at")
+  closeAt      DateTime @map("close_at")
+  isActive     Boolean  @default(false) @map("is_active")
+  announcedAt  DateTime? @map("announced_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("cohorts")
+}
+
+model AnalyticsEvent {
+  id         String   @id @default(uuid())
+  event      String
+  userId     String?  @map("user_id")
+  properties Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([event])
+  @@index([userId])
+  @@map("analytics_events")
+}
