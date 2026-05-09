@@ -4,5 +4,6 @@ from .companies import companies_bp
 from .admin import admin_bp
 from .stats import stats_bp
 from .ai import ai_bp
+from .cohorts import cohorts_bp
 
-__all__ = ["auth_bp", "talent_bp", "companies_bp", "admin_bp", "stats_bp", "ai_bp"]
+__all__ = ["auth_bp", "talent_bp", "companies_bp", "admin_bp", "stats_bp", "ai_bp", "cohorts_bp"]

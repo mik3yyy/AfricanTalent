@@ -52,6 +52,32 @@ async function apiPatch(path: string, body: Record<string, unknown>) {
   return res.json();
 }
 
+async function apiPost(path: string, body: Record<string, unknown>) {
+  const token = await getAdminToken();
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`API POST ${path} failed: ${res.status}`);
+  return res.json();
+}
+
+async function apiDelete(path: string) {
+  const token = await getAdminToken();
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "DELETE",
+    headers: { "Authorization": `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`API DELETE ${path} failed: ${res.status}`);
+  return res.json();
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type ApplicationStatus = "pending" | "approved" | "rejected" | "waitlist";
@@ -113,6 +139,16 @@ export interface Stats {
   companies: number;
 }
 
+export interface CohortData {
+  id: number;
+  name: string;
+  isOpen: boolean;
+  maxSize: number;
+  approved: number;
+  pending: number;
+  createdAt: string;
+}
+
 // ─── Data functions ───────────────────────────────────────────────────────────
 
 export async function getAllTalent(): Promise<TalentUser[]> {
@@ -147,6 +183,42 @@ export async function getStats(): Promise<Stats> {
     return (await apiGet("/api/admin/stats")) as Stats;
   } catch {
     return { talent: 0, approved: 0, pending: 0, rejected: 0, companies: 0 };
+  }
+}
+
+export async function getAllCohorts(): Promise<CohortData[]> {
+  try {
+    const { cohorts } = await apiGet("/api/admin/cohorts");
+    return cohorts as CohortData[];
+  } catch {
+    return [];
+  }
+}
+
+export async function createCohort(data: { name: string; isOpen: boolean; maxSize: number }): Promise<CohortData | null> {
+  try {
+    const { cohort } = await apiPost("/api/admin/cohorts", data);
+    return cohort as CohortData;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateCohort(id: number, data: Partial<{ name: string; isOpen: boolean; maxSize: number }>): Promise<CohortData | null> {
+  try {
+    const { cohort } = await apiPatch(`/api/admin/cohorts/${id}`, data);
+    return cohort as CohortData;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteCohort(id: number): Promise<boolean> {
+  try {
+    await apiDelete(`/api/admin/cohorts/${id}`);
+    return true;
+  } catch {
+    return false;
   }
 }
 

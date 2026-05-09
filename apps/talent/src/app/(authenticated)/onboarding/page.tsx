@@ -57,6 +57,8 @@ const initialData: OnboardingData = {
   resumeUrl: "",
 };
 
+type CohortInfo = { name: string; isOpen: boolean; maxSize: number };
+
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -65,6 +67,18 @@ export default function OnboardingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [profileDetected, setProfileDetected] = useState(false);
+  const [cohort, setCohort] = useState<CohortInfo>({
+    name: platformConfig.cohort.currentNumber ? `Cohort ${platformConfig.cohort.currentNumber}` : "Cohort 1",
+    isOpen: platformConfig.features.applicationsOpen,
+    maxSize: platformConfig.cohort.maxSize,
+  });
+
+  useEffect(() => {
+    fetch("/api/cohort")
+      .then(r => r.json())
+      .then((d: { cohort?: CohortInfo }) => { if (d.cohort) setCohort(d.cohort); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
@@ -122,7 +136,7 @@ export default function OnboardingPage() {
     setSubmitError(null);
     try {
       const supabase = createClient();
-      const applicationType = platformConfig.features.applicationsOpen ? "cohort" : "waitlist";
+      const applicationType = cohort.isOpen ? "cohort" : "waitlist";
 
       const { error } = await supabase.auth.updateUser({
         data: {
@@ -179,16 +193,15 @@ export default function OnboardingPage() {
           </div>
           <h1 className="text-2xl font-bold text-white">Complete your profile</h1>
           <p className="text-white/40 mt-1 text-sm">
-            Cohort {platformConfig.cohort.currentNumber} —{" "}
-            {platformConfig.cohort.maxSize} spots available
+            {cohort.name} — {cohort.maxSize} spots available
           </p>
         </div>
 
         {/* Application status banner */}
-        {platformConfig.features.applicationsOpen ? (
+        {cohort.isOpen ? (
           <div className="mb-6 rounded-xl bg-white/[0.04] border border-white/[0.08] p-4 text-center">
             <span className="inline-block text-xs font-semibold uppercase tracking-wider text-white px-3 py-1 rounded-full bg-white/10 border border-white/10 mb-2">
-              Applications Open — Cohort {platformConfig.cohort.currentNumber}
+              Applications Open — {cohort.name}
             </span>
             <p className="text-white/50 text-sm">
               Complete your profile to apply. Accepted candidates will be
@@ -201,10 +214,8 @@ export default function OnboardingPage() {
               Applications Closed
             </span>
             <p className="text-white/50 text-sm">
-              Applications for Cohort {platformConfig.cohort.currentNumber} are
-              currently closed. Complete your profile to join the waitlist —
-              you&apos;ll be first in line when Cohort{" "}
-              {platformConfig.cohort.currentNumber + 1} opens.
+              {cohort.name} is currently closed. Complete your profile to join the waitlist —
+              you&apos;ll be first in line when the next cohort opens.
             </p>
           </div>
         )}
@@ -284,7 +295,7 @@ export default function OnboardingPage() {
         )}
 
         <p className="text-center text-white/25 text-xs mt-6">
-          Activation fee: ${platformConfig.cohort.activationFee} · Paid after approval · Active 90 days
+          Activation fee: ${platformConfig.cohort.activationFee} · Paid after approval · Active {platformConfig.cohort.periodDays} days
         </p>
       </div>
     </div>

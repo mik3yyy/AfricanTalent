@@ -2,7 +2,7 @@ import os
 from flask import Flask
 from dotenv import load_dotenv
 from .extensions import db, jwt, cors
-from .routes import auth_bp, talent_bp, companies_bp, admin_bp, stats_bp, ai_bp
+from .routes import auth_bp, talent_bp, companies_bp, admin_bp, stats_bp, ai_bp, cohorts_bp
 
 load_dotenv()
 
@@ -25,6 +25,7 @@ def create_app():
     app.register_blueprint(admin_bp)
     app.register_blueprint(stats_bp)
     app.register_blueprint(ai_bp)
+    app.register_blueprint(cohorts_bp)
 
     @app.route("/health")
     def health():
