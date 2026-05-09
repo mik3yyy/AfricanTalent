@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Search, Bookmark, Settings, LogOut } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const NAV = [
@@ -15,6 +15,31 @@ const NAV = [
 export function Topbar() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const registered = useRef(false);
+
+  // Silently register this viewer in Flask on first load (idempotent upsert)
+  useEffect(() => {
+    if (registered.current) return;
+    registered.current = true;
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user?.email) return;
+      const meta = user.user_metadata as Record<string, unknown> | undefined;
+      const vp = (meta?.viewer_profile ?? {}) as Record<string, string>;
+      fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: user.email,
+          contactName: (meta?.full_name as string) ?? "",
+          jobTitle: vp.who ?? "",
+          companyName: vp.companyName ?? "",
+          city: vp.city ?? "",
+          country: vp.country ?? "",
+        }),
+      }).catch(() => {});
+    });
+  }, []);
 
   const handleSignOut = async () => {
     const supabase = createClient();

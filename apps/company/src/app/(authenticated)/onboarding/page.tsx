@@ -64,24 +64,40 @@ export default function OnboardingPage() {
     setSubmitting(true);
     try {
       const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
       const linksMap: Record<string, string> = {};
       links.forEach(({ label, value }) => {
         if (label.trim() && value.trim()) linksMap[label.toLowerCase()] = value.trim();
       });
 
+      const viewerProfile = {
+        who: who === "other" ? whoOther.trim() : who,
+        companyName: showCompany ? companyName : undefined,
+        companySize: showCompany ? companySize : undefined,
+        country,
+        city,
+        links: linksMap,
+      };
+
       await supabase.auth.updateUser({
-        data: {
-          onboarding_completed: true,
-          viewer_profile: {
-            who: who === "other" ? whoOther.trim() : who,
-            companyName: showCompany ? companyName : undefined,
-            companySize: showCompany ? companySize : undefined,
-            country,
-            city,
-            links: linksMap,
-          },
-        },
+        data: { onboarding_completed: true, viewer_profile: viewerProfile },
       });
+
+      // Register in Flask so viewer appears in admin panel
+      if (user?.email) {
+        fetch("/api/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: user.email,
+            contactName: user.user_metadata?.full_name ?? "",
+            jobTitle: who === "other" ? whoOther.trim() : who,
+            companyName: showCompany ? companyName : "",
+            city,
+            country,
+          }),
+        }).catch(() => {});
+      }
 
       router.push("/search");
     } catch {
